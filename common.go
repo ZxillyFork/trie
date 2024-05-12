@@ -6,7 +6,7 @@ import (
 
 // WalkFunc defines some action to take on the given key and value during
 // a Trie Walk. Returning a non-nil error will terminate the Walk.
-type WalkFunc func(key string, value interface{}) error
+type WalkFunc[T any] func(key string, value T) error
 
 // StringSegmenter takes a string key with a starting index and returns
 // the first segment after the start and the ending index. When the end is
