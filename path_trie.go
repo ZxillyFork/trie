@@ -1,7 +1,5 @@
 package trie
 
-import "reflect"
-
 // PathTrie is a trie of paths with string keys and interface{} values.
 
 // PathTrie is a trie of string keys and interface{} values. Internal nodes
@@ -12,7 +10,7 @@ import "reflect"
 // nodes. A classic trie might segment keys by rune (i.e. unicode points).
 type PathTrie[T any] struct {
 	segmenter StringSegmenter // key segmenter, must not cause heap allocs
-	Value     T
+	Value     *T
 	Children  map[string]*PathTrie[T]
 }
 
@@ -57,7 +55,7 @@ func (trie *PathTrie[T]) Get(key string) T {
 			return *new(T)
 		}
 	}
-	return node.Value
+	return *node.Value
 }
 
 // Put inserts the Value into the trie at the given key, replacing any
@@ -78,8 +76,8 @@ func (trie *PathTrie[T]) Put(key string, value T) {
 		}
 		node = child
 	}
-	node.Value = value
-	return
+	node.Value = &value
+
 }
 
 // Walk iterates over each key/Value stored in the trie and calls the given
@@ -90,17 +88,13 @@ func (trie *PathTrie[T]) Walk(walker WalkFunc[T]) error {
 	return trie.walk("", walker)
 }
 
-func isZero[T any](v T) bool {
-	return reflect.ValueOf(&v).Elem().IsZero()
-}
-
 // WalkPath iterates over each key/Value in the path in trie from the root to
 // the node at the given key, calling the given walker function for each
 // key/Value. If the walker function returns an error, the walk is aborted.
 func (trie *PathTrie[T]) WalkPath(key string, walker WalkFunc[T]) error {
 	// Get root Value if one exists.
-	if isZero(trie.Value) {
-		if err := walker("", trie.Value); err != nil {
+	if trie.Value != nil {
+		if err := walker("", *trie.Value); err != nil {
 			return err
 		}
 	}
@@ -108,14 +102,14 @@ func (trie *PathTrie[T]) WalkPath(key string, walker WalkFunc[T]) error {
 		if trie = trie.Children[part]; trie == nil {
 			return nil
 		}
-		if isZero(trie.Value) {
+		if trie.Value != nil {
 			var k string
 			if i == -1 {
 				k = key
 			} else {
 				k = key[0:i]
 			}
-			if err := walker(k, trie.Value); err != nil {
+			if err := walker(k, *trie.Value); err != nil {
 				return err
 			}
 		}
@@ -126,15 +120,9 @@ func (trie *PathTrie[T]) WalkPath(key string, walker WalkFunc[T]) error {
 	return nil
 }
 
-// PathTrie node and the part string key of the child the path descends into.
-type nodeStr[T any] struct {
-	node *PathTrie[T]
-	part string
-}
-
 func (trie *PathTrie[T]) walk(key string, walker WalkFunc[T]) error {
-	if isZero(trie.Value) {
-		if err := walker(key, trie.Value); err != nil {
+	if trie.Value != nil {
+		if err := walker(key, *trie.Value); err != nil {
 			return err
 		}
 	}
@@ -146,16 +134,12 @@ func (trie *PathTrie[T]) walk(key string, walker WalkFunc[T]) error {
 	return nil
 }
 
-func (trie *PathTrie[T]) isLeaf() bool {
-	return len(trie.Children) == 0
-}
-
 // Merge merge empty nodes
 // if a node has no values, assign its part to the parent node
 func (trie *PathTrie[T]) Merge() {
 	for part, child := range trie.Children {
 		child.Merge()
-		if isZero(child.Value) {
+		if child.Value == nil {
 			for cPart, cChild := range child.Children {
 				trie.Children[part+cPart] = cChild
 			}
@@ -167,7 +151,7 @@ func (trie *PathTrie[T]) Merge() {
 func (trie *PathTrie[T]) RecursiveDirectChildren() map[string]*PathTrie[T] {
 	children := map[string]*PathTrie[T]{}
 	for part, child := range trie.Children {
-		if isZero(child.Value) {
+		if child.Value != nil {
 			children[part] = child
 			continue
 		}
