@@ -55,6 +55,9 @@ func (trie *PathTrie[T]) Get(key string) T {
 			return *new(T)
 		}
 	}
+	if node.Value == nil {
+		return *new(T)
+	}
 	return *node.Value
 }
 
